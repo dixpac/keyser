@@ -1,9 +1,11 @@
 require "http/parser"
+require "stringio"
 
 module Keyser
   class Connection
-    def initialize(socket)
+    def initialize(socket, app)
       @socket = socket
+      @app = app
  		  @parser = Http::Parser.new(self)
     end
 
@@ -19,13 +21,41 @@ module Keyser
       puts "Path: " + @parser.request_path
       puts "Headers: " + @parser.headers.inspect
 
-      send_resoponse
+      env = {}
+
+      @parser.headers.each_pair do |name, value|
+        # User-Agent => HTTP_USER_AGENT
+        name = "HTTP_" + name.upcase.tr("-", "_")
+        env[name] = value
+      end
+      env["PATH_INFO"] = @parser.request_path
+      env["REQUEST_METHOD"] = @parser.http_method
+      env["rack.input"] = StringIO.new
+
+      send_resoponse env
     end
 
-    def send_resoponse
-      @socket.write "HTTP/1.1 200 OK \r\n"
+    RESPONSES = {
+      200 => "OK",
+      404 => "Not Found"
+    }
+
+    def send_resoponse(env)
+      status, headers, body = @app.call(env)
+      response = RESPONSES[status]
+
+      @socket.write "HTTP/1.1 #{status} #{response} \r\n"
       @socket.write "\r\n"
-      @socket.write "Keyser Soze is my name!!\n"
+
+      headers.each_pair do |name, value|
+        @socket.write "#{name}: #{value}"
+      end
+      @socket.write "\r\n"
+
+      body.each do |chunk|
+        @socket.write chunk
+      end
+      body.close if body.respond_to? :close
 
       close
     end
