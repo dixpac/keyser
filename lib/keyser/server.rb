@@ -1,4 +1,5 @@
 require "socket"
+require "thread"
 require_relative "connection"
 
 module Keyser
@@ -11,16 +12,18 @@ module Keyser
     def start
       loop do
         socket = @server.accept
-        connection = Connection.new(socket, @app)
-        connection.process
+        Thread.new do
+          connection = Connection.new(socket, @app)
+          connection.process
+        end
       end
     end
   end
 
   class App
     def call(env)
+      sleep 5 if env["PATH_INFO"] == "/sleep"
       message = "jaso..."
-
       [
         200,
         { "Content-Type" => "text/plain", "Content-Lenght" => message.size.to_s },
