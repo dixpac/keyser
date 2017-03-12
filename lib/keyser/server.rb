@@ -1,37 +1,27 @@
 require "socket"
-require "thread"
+require "eventmachine"
 require_relative "connection"
 
 module Keyser
   class Server
     def initialize(port, app)
-      @server = TCPServer.new(port)
       @app = app
-    end
-
-    def prefork(workers)
-      workers.times do
-        fork do
-          puts "Forked #{Process.pid}"
-          start
-        end
-      end
-      Process.waitall
+      @port = port
     end
 
     def start
-      loop do
-        socket = @server.accept
-        connection = Connection.new(socket, @app)
-        connection.process
+      EM.run do
+        EM.start_server "localhost", @port, Connection do |connection|
+          connection.app = @app
+        end
       end
     end
   end
 
   class App
     def call(env)
-      sleep 5 if env["PATH_INFO"] == "/sleep"
-      message = "called from #{Process.pid}"
+      #sleep 5 if env["PATH_INFO"] == "/sleep"
+      message = "aaaaa"
       [
         200,
         { "Content-Type" => "text/plain", "Content-Lenght" => message.size.to_s },
@@ -43,5 +33,5 @@ module Keyser
   app = App.new
   server = Server.new(3000, app)
   puts "Kazyer is started!"
-  server.prefork(3)
+  server.start
 end

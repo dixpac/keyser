@@ -1,19 +1,17 @@
 require "http/parser"
 require "stringio"
+require "eventmachine"
 
 module Keyser
-  class Connection
-    def initialize(socket, app)
-      @socket = socket
-      @app = app
+  class Connection < EM::Connection
+    attr_accessor :app
+
+    def post_init
  		  @parser = Http::Parser.new(self)
     end
 
-    def process
-      until @socket.closed? || @socket.eof? do
-        data = @socket.readpartial(1024)
-        @parser << data
-      end
+    def receive_data(data)
+      @parser << data
     end
 
     def on_message_complete
@@ -44,20 +42,20 @@ module Keyser
       status, headers, body = @app.call(env)
       response = RESPONSES[status]
 
-      @socket.write "HTTP/1.1 #{status} #{response} \r\n"
-      @socket.write "\r\n"
+      send_data "HTTP/1.1 #{status} #{response} \r\n"
+      send_data "\r\n"
 
       headers.each_pair do |name, value|
-        @socket.write "#{name}: #{value}"
+        send_data "#{name}: #{value}"
       end
-      @socket.write "\r\n"
+      send_data "\r\n"
 
       body.each do |chunk|
-        @socket.write chunk
+        send_data chunk
       end
       body.close if body.respond_to? :close
 
-      close
+      close_connection_after_writing
     end
 
     def close

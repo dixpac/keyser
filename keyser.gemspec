@@ -35,4 +35,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "minitest", "~> 5.0"
 
   spec.add_dependency "http_parser.rb", "0.5.3"
+  spec.add_dependency "eventmachine", "1.2.3"
 end
